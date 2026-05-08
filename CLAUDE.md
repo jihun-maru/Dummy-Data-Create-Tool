@@ -9,23 +9,30 @@
 관리자가 콘솔에서 시스템 전체 현황을 실시간으로 조회할 수 있는 독립 실행형 뷰어다.
 메인 관리 시스템(`main.py`)과 별도 프로세스로 동작하며 데이터를 수정하지 않는다.
 
+**더미 데이터 생성 도구(Dummy Data Create Tool)** 는 테스트를 위한 S-Semi 도메인 더미 데이터를
+생성하고 연결된 SQLite DB에 삽입하는 독립 실행형 도구다.
+기존 `model/` 도메인 객체를 재사용하며, `main.py` / `monitor_app.py`와 별도 프로세스로 동작한다.
+
 **POC 이력:**
 - **1차 POC (완료):** MVC 패키지 구조와 역할 분리 완성 — 인메모리 스켈레톤
 - **2차 POC (완료):** 데이터 영속성 처리 — JSON 파일 기반 Repository 패턴으로 CRUD 및 재시작 후 데이터 유지 구현
-- **3차 POC (현재):** 데이터 모니터링 도구 — JSON 파일에서 데이터를 읽어 콘솔 대시보드로 실시간 제공
+- **3차 POC (완료):** 데이터 모니터링 도구 — JSON 파일에서 데이터를 읽어 콘솔 대시보드로 실시간 제공
+- **4차 POC (현재):** 더미 데이터 생성 도구 — S-Semi 도메인 테스트 데이터 생성 + SQLite DB 삽입
 
 ## 기술 스택
 
 - **언어:** Python 3.x
-- **아키텍처:** MVC + Repository (Model / View / Controller / Persistence) + Monitor
+- **아키텍처:** MVC + Repository (Model / View / Controller / Persistence) + Monitor + Dummy
 - **인터페이스:** 콘솔(CLI) 기반 — GUI 없음
 - **외부 의존성:** 없음 (표준 라이브러리만 사용)
-- **영속성 방식:** JSON 파일 (`json`, `pathlib` 모듈) — `data/` 디렉토리에 저장
+- **영속성 방식:**
+  - 관리 시스템: JSON 파일 (`json`, `pathlib`) — `data/` 디렉토리
+  - 더미 데이터 도구: SQLite (`sqlite3`) — `data/dummy.db`
 
 ## 패키지 구조 및 역할 분리 원칙
 
 ```
-Data-Monitoring-Tool/
+Dummy-Data-Create-Tool/
 ├── model/               # 데이터 구조 및 비즈니스 로직
 │   ├── __init__.py
 │   ├── sample.py
@@ -49,18 +56,29 @@ Data-Monitoring-Tool/
 │   └── production_view.py
 ├── persistence/         # 영속성 레이어 — JSON 파일 I/O 전담
 │   ├── __init__.py
-│   ├── base_repository.py      # 추상 Repository 인터페이스
-│   ├── sample_repository.py    # Sample CRUD + JSON 직렬화
-│   ├── order_repository.py     # Order CRUD + JSON 직렬화
-│   └── production_repository.py # ProductionLine 상태 저장/복원
-├── monitor/             # 데이터 모니터링 도구 — 읽기 전용 대시보드 (3차 POC 신규)
+│   ├── base_repository.py
+│   ├── sample_repository.py
+│   ├── order_repository.py
+│   └── production_repository.py
+├── monitor/             # 데이터 모니터링 도구 — 읽기 전용 대시보드
 │   ├── __init__.py
-│   ├── monitor_controller.py   # Repository 읽기 + 데이터 집계
-│   └── monitor_view.py         # 대시보드 화면 출력 + 입력 처리
+│   ├── monitor_controller.py
+│   └── monitor_view.py
+├── dummy/               # 더미 데이터 생성 도구 (4차 POC 신규)
+│   ├── __init__.py
+│   ├── sample_generator.py      # Sample 더미 데이터 생성
+│   ├── order_generator.py       # Order 더미 데이터 생성
+│   ├── production_generator.py  # ProductionJob 더미 데이터 생성
+│   └── db/                      # SQLite DB 연결·스키마·삽입 서브패키지
+│       ├── __init__.py
+│       ├── connection.py        # SQLite 연결 컨텍스트 매니저
+│       ├── schema.py            # 테이블 DDL 정의 + 생성
+│       └── inserter.py          # 생성 데이터 → DB 삽입
 ├── data/                # 런타임 데이터 파일 (git 제외)
 │   ├── samples.json
 │   ├── orders.json
-│   └── production.json
+│   ├── production.json
+│   └── dummy.db         # 더미 데이터 SQLite DB (4차 POC)
 ├── tests/
 │   ├── test_phase1.py
 │   ├── test_phase2.py
@@ -72,9 +90,14 @@ Data-Monitoring-Tool/
 │   ├── test_integration.py
 │   ├── test_persistence.py
 │   ├── test_final.py
-│   └── test_monitor.py         # Phase 13: 모니터링 도구 검증 (3차 POC 신규)
+│   ├── test_monitor.py
+│   ├── test_phase12.py
+│   ├── test_monitor_final.py
+│   ├── test_dummy.py            # Phase D-3: 더미 도구 단위 검증 (4차 POC 신규)
+│   └── test_dummy_final.py      # Phase D-4: 더미 도구 최종 통합 검증 (4차 POC 신규)
 ├── main.py              # 메인 관리 시스템 진입점
-├── monitor_app.py       # 데이터 모니터링 도구 진입점 (3차 POC 신규)
+├── monitor_app.py       # 데이터 모니터링 도구 진입점
+├── dummy_app.py         # 더미 데이터 생성 도구 진입점 (4차 POC 신규)
 ├── CLAUDE.md
 └── PLAN.md
 ```
@@ -89,6 +112,9 @@ Data-Monitoring-Tool/
 | **Persistence** | JSON 파일 읽기/쓰기, Model 객체 직렬화/역직렬화 | `print()`, `input()`, 비즈니스 로직 |
 | **Monitor/Controller** | Repository 읽기, 화면용 데이터 집계 | `print()`, `input()`, 데이터 변경 |
 | **Monitor/View** | `print()` 출력, `input()` 입력, 화면 클리어(`os.system`) | Repository 직접 접근, 비즈니스 로직 |
+| **Dummy/Generator** | 도메인 객체 생성, 랜덤 데이터 조합 | `print()`, `input()`, DB/파일 I/O |
+| **Dummy/DB** | SQLite 연결, DDL 실행, 데이터 삽입 | `print()`, `input()`, 비즈니스 로직, 도메인 계산 |
+| **dummy_app.py** | Generator 호출, Inserter 호출, 진행 현황 출력 | 비즈니스 로직, 도메인 계산 |
 
 ### Repository 패턴 원칙
 
@@ -156,7 +182,7 @@ RELEASE    → 출고 완료
 5. **출고처리** — CONFIRMED 주문 선택 후 RELEASE 전환
 6. **생산라인** — 현재 생산 현황 + 대기 큐(FIFO) 조회
 
-### 데이터 모니터링 도구 (`monitor_app.py`) — 3차 POC 신규
+### 데이터 모니터링 도구 (`monitor_app.py`)
 
 7. **대시보드 화면** — 시스템 전체 현황을 단일 화면에 표시
    - 헤더: 툴 이름, 마지막 갱신 시각
@@ -166,42 +192,76 @@ RELEASE    → 출고 완료
 8. **실시간 갱신** — 자동 주기 갱신(기본 5초) + 수동 갱신(키 입력)
 9. **종료** — `q` 입력 또는 Ctrl+C로 종료
 
-## 데이터 모니터링 도구 — 화면 구성
+### 더미 데이터 생성 도구 (`dummy_app.py`) — 4차 POC 신규
+
+10. **생성 설정** — 생성할 데이터 종류 및 수량 선택 (시료 수 / 주문 수 / 상태 비율)
+11. **DB 연결 및 스키마 초기화** — SQLite DB 파일 생성, 테이블 DDL 자동 실행
+12. **더미 데이터 생성** — S-Semi 도메인 기반 현실적인 테스트 데이터 생성
+    - 시료: 반도체 소재 기반 이름, 현실적인 수율·생산시간·재고
+    - 주문: 다양한 고객명, 상태별 분포, 수량 범위
+    - 생산 작업: PRODUCING 주문에 연동된 생산 작업 데이터
+13. **DB 삽입** — 생성된 데이터를 SQLite DB에 삽입 (upsert 또는 초기화 후 삽입)
+14. **삽입 결과 요약** — 삽입 완료된 레코드 수 및 DB 경로 출력
+
+## 더미 데이터 생성 도구 — 화면 구성
 
 ```
 ==============================================
-  S-Semi 데이터 모니터링 도구
-  갱신: 2026-05-08 14:30:25  | 자동갱신: 5초
+  S-Semi 더미 데이터 생성 도구
 ==============================================
 
-[ 시료 재고 현황 ]
---------------------------------------------------
- ID     이름           재고    상태
---------------------------------------------------
- S001   GaN 웨이퍼     100     여유
- S002   SiC 웨이퍼     0       고갈
---------------------------------------------------
+생성 옵션을 선택하세요:
+  [1] 기본 세트 생성 (시료 5개 / 주문 20개)
+  [2] 대용량 세트 생성 (시료 10개 / 주문 100개)
+  [3] 직접 설정
+  [4] DB 초기화 후 재생성
+  [q] 종료
 
-[ 주문 현황 ]
---------------------------------------------------
- RESERVED    :  2건
- PRODUCING   :  1건
- CONFIRMED   :  3건
- RELEASE     :  5건
---------------------------------------------------
+선택 > 1
 
-[ 생산라인 현황 ]
---------------------------------------------------
- 현재 작업: O003 | S002 | 목표 12개 | 생산 4개 완료
- 대기열 (2건):
-   [1] O004 | S001 | 12개
-   [2] O005 | S002 | 18개
---------------------------------------------------
+----------------------------------------------
+  데이터 생성 중...
+  시료      5개 생성 완료
+  주문     20개 생성 완료 (RESERVED:4 / PRODUCING:4 / CONFIRMED:6 / RELEASE:6)
+  생산 작업  4개 생성 완료
 
-[r] 수동갱신  [q] 종료  [a] 자동갱신 토글
+  DB 삽입 중...
+  DB 경로  : data/dummy.db
+  삽입 완료: 29개 레코드
+----------------------------------------------
 ```
 
-## JSON 직렬화 규칙
+## SQLite DB 스키마 (더미 데이터 도구)
+
+```sql
+CREATE TABLE IF NOT EXISTS samples (
+    sample_id   TEXT PRIMARY KEY,
+    name        TEXT    NOT NULL,
+    avg_production_time REAL NOT NULL,
+    yield_rate  REAL    NOT NULL,
+    stock       INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+    order_id    TEXT PRIMARY KEY,
+    sample_id   TEXT NOT NULL,
+    customer    TEXT NOT NULL,
+    quantity    INTEGER NOT NULL,
+    status      TEXT NOT NULL,
+    FOREIGN KEY (sample_id) REFERENCES samples(sample_id)
+);
+
+CREATE TABLE IF NOT EXISTS production_jobs (
+    order_id    TEXT PRIMARY KEY,
+    sample_id   TEXT NOT NULL,
+    actual_qty  INTEGER NOT NULL,
+    total_time  REAL    NOT NULL,
+    produced_qty INTEGER NOT NULL DEFAULT 0,
+    is_current  INTEGER NOT NULL DEFAULT 0
+);
+```
+
+## JSON 직렬화 규칙 (관리 시스템)
 
 ### samples.json 스키마
 ```json
@@ -262,28 +322,22 @@ RELEASE    → 출고 완료
 
 ```
 tests/
-├── test_phase1.py        # Phase 1: 패키지 뼈대 구조 검증
-├── test_phase2.py        # Phase 2: Model 레이어 단위 검증
-├── test_phase3.py        # Phase 3: Controller 레이어 단위 검증
-├── test_phase4.py        # Phase 4: View 레이어 구조 검증 (AST 기반)
-├── test_phase7.py        # Phase 7: BaseRepository 구조·동작 검증
-├── test_phase8.py        # Phase 8: 구체 Repository 3종 CRUD·직렬화 검증
-├── test_phase9.py        # Phase 9: Controller Repository 연동, 파일 반영, 회귀 검증
-├── test_integration.py   # Phase 5/6: 전체 E2E 시나리오 검증
-├── test_persistence.py   # Phase 10: 영속성 CRUD 및 재시작 시나리오 검증
-├── test_final.py         # Phase 11: 전체 Phase 순차 실행 + 영속성 E2E 최종 검증
-├── test_phase12.py       # Phase 12: monitor/ 패키지 구조·import·역할 경계 검증 (사전 제공)
-├── test_monitor.py       # Phase 13: 모니터링 도구 집계·AST 검증 M-1~M-9 (Phase 13 생성)
-└── test_monitor_final.py # Phase 14: 전체 Phase E2E 최종 통합 검증 (사전 제공)
+├── test_phase1.py          # Phase 1: 패키지 뼈대 구조 검증
+├── test_phase2.py          # Phase 2: Model 레이어 단위 검증
+├── test_phase3.py          # Phase 3: Controller 레이어 단위 검증
+├── test_phase4.py          # Phase 4: View 레이어 구조 검증 (AST 기반)
+├── test_phase7.py          # Phase 7: BaseRepository 구조·동작 검증
+├── test_phase8.py          # Phase 8: 구체 Repository 3종 CRUD·직렬화 검증
+├── test_phase9.py          # Phase 9: Controller Repository 연동, 파일 반영, 회귀 검증
+├── test_integration.py     # Phase 5/6: 전체 E2E 시나리오 검증
+├── test_persistence.py     # Phase 10: 영속성 CRUD 및 재시작 시나리오 검증
+├── test_final.py           # Phase 11: 전체 Phase 순차 실행 + 영속성 E2E 최종 검증
+├── test_phase12.py         # Phase 12: monitor/ 패키지 구조·import·역할 경계 검증
+├── test_monitor.py         # Phase 13: 모니터링 도구 집계·AST 검증 M-1~M-9
+├── test_monitor_final.py   # Phase 14: 전체 Phase E2E 최종 통합 검증
+├── test_dummy.py           # Phase D-3: 더미 도구 단위 검증 (4차 POC 신규)
+└── test_dummy_final.py     # Phase D-4: 더미 도구 최종 통합 검증 (4차 POC 신규)
 ```
-
-### 테스트 파일 제공 방식
-
-| 구분 | 파일 | 설명 |
-|------|------|------|
-| **사전 제공** (agent 실행 전 존재) | `test_phase12.py` | Phase 12 agent가 구현 후 실행해 검증 |
-| **사전 제공** (agent 실행 전 존재) | `test_monitor_final.py` | Phase 14 agent가 실행해 전체 완성 판정 |
-| **agent 생성** (agent가 직접 작성) | `test_monitor.py` | Phase 13 agent의 결과물이자 검증 수단 |
 
 ### Phase별 검증 명령
 
@@ -300,9 +354,10 @@ tests/
 | 10 | `python tests/test_persistence.py` | 영속성 CRUD 시나리오 P-1~P-6 |
 | 11 | `python tests/test_final.py` | Phase 1~10 전체 + 재시작 E2E |
 | 12 | `python tests/test_phase12.py` | monitor/ 패키지 구조·import·빈 데이터·역할 경계(AST) |
-| 12 | `python monitor_app.py` (수동) | 대시보드 화면 출력·갱신 동작 확인 |
 | 13 | `python tests/test_monitor.py` | 집계 로직 M-1~M-9, 역할 경계(AST) |
 | 14 | `python tests/test_monitor_final.py` | 전체 Phase E2E 최종 통합 검증 |
+| D-3 | `python tests/test_dummy.py` | 더미 도구 단위 검증 D-1~D-9 |
+| D-4 | `python tests/test_dummy_final.py` | 더미 도구 최종 통합 검증 |
 
 ### AST 정적 검사 항목
 
@@ -314,15 +369,22 @@ tests/
 | `persistence/*.py` | `print()`, `input()`, 비즈니스 로직 (상태 전이 등) |
 | `monitor/monitor_controller.py` | `print()`, `input()`, 데이터 변경 호출 |
 | `monitor/monitor_view.py` | Repository 직접 import, 비즈니스 로직 |
+| `dummy/*.py` (generator) | `print()`, `input()`, DB/파일 I/O |
+| `dummy/db/*.py` | `print()`, `input()`, 비즈니스 로직, 도메인 계산 |
 
-## 이번 POC 범위 (3차 — 데이터 모니터링 도구)
+## 이번 POC 범위 (4차 — 더미 데이터 생성 도구)
 
-- **목표:** JSON 파일에 저장된 데이터를 읽어 콘솔 대시보드로 실시간 표시
+- **목표:** S-Semi 도메인 기반 테스트용 더미 데이터를 생성하여 SQLite DB에 삽입
 - **범위:**
-  - `monitor/` 패키지 신규 구현 (`MonitorController` + `MonitorView`)
-  - 기존 `SampleRepository` / `OrderRepository` / `ProductionRepository` 재사용 (읽기 전용)
-  - 시료 재고 현황·주문 현황·생산라인 현황을 단일 화면으로 구성
-  - 자동 갱신(기본 5초) 및 수동 갱신 지원
-  - `monitor_app.py` 진입점 구현
-  - `tests/test_monitor.py` 작성
-- **제외:** 데이터 수정, 인증, GUI, 동시성 처리
+  - `dummy/` 패키지 신규 구현
+    - `sample_generator.py` — 반도체 시료 더미 데이터 생성
+    - `order_generator.py` — 주문 더미 데이터 생성 (상태 비율 설정 가능)
+    - `production_generator.py` — 생산 작업 더미 데이터 생성
+  - `dummy/db/` 서브패키지 신규 구현
+    - `connection.py` — SQLite 연결 컨텍스트 매니저
+    - `schema.py` — 테이블 DDL 정의 + 자동 생성
+    - `inserter.py` — 생성 데이터 → DB 삽입 (초기화·upsert 지원)
+  - `dummy_app.py` — 진입점: 생성 옵션 선택 → 생성 → 삽입 → 결과 출력
+  - `tests/test_dummy.py` — 단위 검증 (D-1~D-9 시나리오)
+  - `tests/test_dummy_final.py` — 최종 통합 검증
+- **제외:** 인증, GUI, 동시성, 기존 JSON 파일 직접 수정
