@@ -2,6 +2,7 @@
 Phase D-1 검증 — dummy/db/ 패키지 구조·연결·스키마·삽입기
 """
 import ast
+import gc
 import os
 import sys
 import tempfile
@@ -27,6 +28,24 @@ def make_temp_db() -> str:
     os.close(fd)
     os.remove(path)
     return path
+
+
+def _safe_remove(path: str) -> None:
+    """Windows 환경에서 sqlite3 커서/연결 파일 핸들 해제 후 삭제."""
+    gc.collect()
+    if os.path.exists(path):
+        os.remove(path)
+
+
+def _query(db_path: str, sql: str):
+    """임시 연결로 쿼리 실행 후 즉시 닫고 결과 반환."""
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.execute(sql)
+        return cur.fetchall()
+    finally:
+        conn.close()
 
 
 # ──────────────────────────────────────────────
@@ -69,8 +88,7 @@ def test_d1_2_connection():
     except Exception as e:
         check(f"D1-2-3 컨텍스트 매니저 동작 ({e})", False)
     finally:
-        if os.path.exists(tmp):
-            os.remove(tmp)
+        _safe_remove(tmp)
 
 
 # ──────────────────────────────────────────────
@@ -80,7 +98,6 @@ def test_d1_3_schema():
     print("\n[D1-3] schema.py — create_tables 검증")
     tmp = make_temp_db()
     try:
-        import sqlite3
         from dummy.db.connection import get_connection
         from dummy.db.schema import create_tables
         check("D1-3-1 create_tables import 성공", True)
@@ -88,21 +105,17 @@ def test_d1_3_schema():
         with get_connection(tmp) as conn:
             create_tables(conn)
 
-        with sqlite3.connect(tmp) as conn:
-            cursor = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-            )
-            tables = {row[0] for row in cursor.fetchall()}
+        rows = _query(tmp, "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+        tables = {row[0] for row in rows}
 
         check("D1-3-2 samples 테이블 생성", "samples" in tables)
         check("D1-3-3 orders 테이블 생성", "orders" in tables)
         check("D1-3-4 production_jobs 테이블 생성", "production_jobs" in tables)
 
         # 컬럼 구조 확인
-        with sqlite3.connect(tmp) as conn:
-            cols_s = {row[1] for row in conn.execute("PRAGMA table_info(samples)")}
-            cols_o = {row[1] for row in conn.execute("PRAGMA table_info(orders)")}
-            cols_j = {row[1] for row in conn.execute("PRAGMA table_info(production_jobs)")}
+        cols_s = {row[1] for row in _query(tmp, "PRAGMA table_info(samples)")}
+        cols_o = {row[1] for row in _query(tmp, "PRAGMA table_info(orders)")}
+        cols_j = {row[1] for row in _query(tmp, "PRAGMA table_info(production_jobs)")}
 
         check("D1-3-5 samples 컬럼 구조",
               {"sample_id", "name", "avg_production_time", "yield_rate", "stock"}.issubset(cols_s))
@@ -124,8 +137,7 @@ def test_d1_3_schema():
     except Exception as e:
         check(f"D1-3 스키마 생성 ({e})", False)
     finally:
-        if os.path.exists(tmp):
-            os.remove(tmp)
+        _safe_remove(tmp)
 
 
 # ──────────────────────────────────────────────
@@ -135,7 +147,6 @@ def test_d1_4_inserter():
     print("\n[D1-4] inserter.py — DummyInserter 검증")
     tmp = make_temp_db()
     try:
-        import sqlite3
         from dummy.db.inserter import DummyInserter
         check("D1-4-1 DummyInserter import 성공", True)
 
@@ -178,10 +189,9 @@ def test_d1_4_inserter():
         check("D1-4-10 insert_production_jobs() 반환값 = 삽입 건수(1)", n_j == 1)
 
         # SELECT로 실제 DB 확인
-        with sqlite3.connect(tmp) as conn:
-            cnt_s = conn.execute("SELECT COUNT(*) FROM samples").fetchone()[0]
-            cnt_o = conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0]
-            cnt_j = conn.execute("SELECT COUNT(*) FROM production_jobs").fetchone()[0]
+        cnt_s = _query(tmp, "SELECT COUNT(*) FROM samples")[0][0]
+        cnt_o = _query(tmp, "SELECT COUNT(*) FROM orders")[0][0]
+        cnt_j = _query(tmp, "SELECT COUNT(*) FROM production_jobs")[0][0]
 
         check("D1-4-11 samples DB 행 수 확인", cnt_s == 1)
         check("D1-4-12 orders DB 행 수 확인", cnt_o == 1)
@@ -189,17 +199,15 @@ def test_d1_4_inserter():
 
         # reset() 후 0건 확인
         inserter.reset()
-        with sqlite3.connect(tmp) as conn:
-            cnt_s = conn.execute("SELECT COUNT(*) FROM samples").fetchone()[0]
-            cnt_o = conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0]
+        cnt_s = _query(tmp, "SELECT COUNT(*) FROM samples")[0][0]
+        cnt_o = _query(tmp, "SELECT COUNT(*) FROM orders")[0][0]
         check("D1-4-14 reset() 후 samples 0건", cnt_s == 0)
         check("D1-4-15 reset() 후 orders 0건", cnt_o == 0)
 
         # INSERT OR REPLACE (upsert) 확인
         inserter.insert_samples([s])
         inserter.insert_samples([s])  # 동일 sample_id 두 번 삽입
-        with sqlite3.connect(tmp) as conn:
-            cnt_s = conn.execute("SELECT COUNT(*) FROM samples").fetchone()[0]
+        cnt_s = _query(tmp, "SELECT COUNT(*) FROM samples")[0][0]
         check("D1-4-16 INSERT OR REPLACE — 중복 삽입 시 1건 유지", cnt_s == 1)
 
     except ImportError as e:
@@ -207,8 +215,7 @@ def test_d1_4_inserter():
     except Exception as e:
         check(f"D1-4 DummyInserter 오류 ({e})", False)
     finally:
-        if os.path.exists(tmp):
-            os.remove(tmp)
+        _safe_remove(tmp)
 
 
 # ──────────────────────────────────────────────
