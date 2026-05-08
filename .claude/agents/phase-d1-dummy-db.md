@@ -249,28 +249,47 @@ class DummyInserter:
 
 ## 검증 방법
 
-### 빠른 import 확인
+> **사전 제공 검증 스크립트:** `tests/test_dummy_d1.py` 는 Phase D-1 agent 실행 전 이미 존재한다.
+> Phase D-1 agent는 구현 완료 후 이 스크립트를 실행해 검증한다.
+
+### 자동 검증 스크립트 실행 (필수)
 
 ```bash
-python -c "from dummy.db.connection import get_connection; print('connection OK')"
-python -c "from dummy.db.schema import create_tables; print('schema OK')"
-python -c "from dummy.db.inserter import DummyInserter; print('inserter OK')"
+python tests/test_dummy_d1.py
 ```
 
-### 동작 확인 (간단한 smoke test)
+모든 항목 `[PASS]` 출력 후 "✓ Phase D-1 검증 완료" 메시지가 나와야 통과.
 
-```python
-import tempfile, os
-from dummy.db.connection import get_connection
-from dummy.db.schema import create_tables
-from dummy.db.inserter import DummyInserter
+### 검증 항목
 
-# 임시 DB로 테스트
-tmp = tempfile.mktemp(suffix=".db")
-inserter = DummyInserter(db_path=tmp)
-inserter.reset()
-print("DummyInserter 초기화 및 reset() 성공")
-os.remove(tmp)
+| 시나리오 | 검증 내용 |
+|----------|----------|
+| D1-1 패키지 구조 | `dummy/`, `dummy/db/` 디렉토리 및 5개 파일 존재 확인 |
+| D1-2 connection | `get_connection()` 컨텍스트 매니저 정상 동작, `DEFAULT_DB_PATH` 존재 |
+| D1-3 schema | `create_tables()` — 테이블 3개 생성, 컬럼 구조, 멱등성 |
+| D1-4 inserter | `DummyInserter` 인스턴스화, 4개 메서드 존재, 실제 삽입·reset·upsert 검증 |
+| D1-5 AST | `dummy/db/*.py` 에 `print()`/`input()` 없음 |
+
+### 기대 출력
+
+```
+======================================================
+Phase D-1 검증 — dummy/db/ 패키지
+======================================================
+
+[D1-1] 패키지 구조 검증
+[PASS] D1-1 dummy/ 존재
+[PASS] D1-1 dummy/__init__.py 존재
+...
+
+[D1-5] 역할 경계 (AST) — dummy/db/*.py
+[PASS] D1-5 dummy/db/connection.py — print/input 없음
+[PASS] D1-5 dummy/db/schema.py — print/input 없음
+[PASS] D1-5 dummy/db/inserter.py — print/input 없음
+
+------------------------------------------------------
+결과: N개 통과 / 0개 실패
+✓ Phase D-1 검증 완료 — 모든 항목 통과
 ```
 
 ### 실패 시 조치
@@ -279,6 +298,9 @@ os.remove(tmp)
 |------|------|
 | `ModuleNotFoundError: dummy` | `dummy/__init__.py` 존재 여부 확인 |
 | `ModuleNotFoundError: dummy.db` | `dummy/db/__init__.py` 존재 여부 확인 |
+| `D1-3-8 멱등성 FAIL` | DDL에 `CREATE TABLE IF NOT EXISTS` 사용 여부 확인 |
+| `D1-4-8 insert_samples 반환값 FAIL` | `return len(rows)` 누락 확인 |
+| `D1-4-16 upsert FAIL` | `INSERT OR REPLACE` 사용 여부 확인 |
 | `OperationalError: no such table` | `create_tables()` 가 `DummyInserter.__init__` 에서 호출되는지 확인 |
 | `IntegrityError: FOREIGN KEY constraint` | `insert_samples()` 를 `insert_orders()` 보다 먼저 호출했는지 확인 |
 | `AttributeError: status.value` | Order 객체의 status 타입 확인 — OrderStatus enum이면 `.value`, 문자열이면 그대로 사용 |

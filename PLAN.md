@@ -137,6 +137,22 @@ class DummyInserter:
 
 - `dummy/db/*.py`: `print()`, `input()`, 비즈니스 로직, 도메인 계산 금지
 
+#### 검증
+
+> **사전 제공 검증 스크립트:** `tests/test_dummy_d1.py` 는 Phase D-1 agent 실행 전 이미 존재한다.
+
+```bash
+python tests/test_dummy_d1.py
+```
+
+| 시나리오 | 검증 내용 |
+|----------|----------|
+| D1-1 | 패키지 구조 — `dummy/`, `dummy/db/`, 5개 파일 존재 |
+| D1-2 | `get_connection()` — 컨텍스트 매니저 동작, `DEFAULT_DB_PATH` 상수 |
+| D1-3 | `create_tables()` — 테이블 3개·컬럼 구조·멱등성 |
+| D1-4 | `DummyInserter` — 4개 메서드 존재, 실제 삽입·SELECT 검증, reset, upsert |
+| D1-5 | AST — `dummy/db/*.py` 에 `print()`/`input()` 없음 |
+
 ---
 
 ### Phase D-2. `dummy/` 생성기 구현
@@ -213,6 +229,22 @@ def generate_production_jobs(orders: list[Order], samples: list[Sample]) -> list
 #### 역할 경계
 
 - `dummy/*.py` (generator): `print()`, `input()`, DB/파일 I/O 금지
+
+#### 검증
+
+> **사전 제공 검증 스크립트:** `tests/test_dummy_d2.py` 는 Phase D-2 agent 실행 전 이미 존재한다.
+
+```bash
+python tests/test_dummy_d2.py
+```
+
+| 시나리오 | 검증 내용 |
+|----------|----------|
+| D2-1 | 파일 구조 — 생성기 3개 파일 존재 |
+| D2-2 | `generate_samples()` — 건수, 속성, 범위, 중복, pool 초과 처리 |
+| D2-3 | `generate_orders()` — 건수, REJECTED 미포함, 4가지 상태, status_ratio, 빈 입력 |
+| D2-4 | `generate_production_jobs()` — PRODUCING 연동, 계산식, is_current, 빈 처리 |
+| D2-5 | AST — `print()`/`input()`/`sqlite3`/`open()` 없음 |
 
 ---
 
@@ -359,34 +391,58 @@ dummy_app.py (더미 데이터 도구, 별도 프로세스)
 
 ---
 
+## 사전 제공 테스트 파일
+
+| 구분 | 파일 | 설명 |
+|------|------|------|
+| **사전 제공** | `tests/test_dummy_d1.py` | Phase D-1 agent 검증용 (구현 전 존재) |
+| **사전 제공** | `tests/test_dummy_d2.py` | Phase D-2 agent 검증용 (구현 전 존재) |
+| **agent 생성** | `tests/test_dummy.py` | Phase D-3 agent의 결과물이자 검증 수단 |
+| **agent 생성** | `tests/test_dummy_final.py` | Phase D-4 agent의 결과물이자 최종 검증 수단 |
+
+---
+
 ## 체크리스트
 
 ### Phase D-1 — `dummy/db/` 서브패키지
 
 - [ ] `dummy/__init__.py`
 - [ ] `dummy/db/__init__.py`
-- [ ] `dummy/db/connection.py` — `get_connection()` 컨텍스트 매니저
-- [ ] `dummy/db/schema.py` — `create_tables()`, DDL 3개 테이블
+- [ ] `dummy/db/connection.py` — `get_connection()` 컨텍스트 매니저, `DEFAULT_DB_PATH` 상수
+- [ ] `dummy/db/schema.py` — `create_tables()`, DDL 3개 테이블, `CREATE TABLE IF NOT EXISTS`
 - [ ] `dummy/db/inserter.py` — `DummyInserter.reset()`, `insert_samples()`, `insert_orders()`, `insert_production_jobs()`
+- [ ] `python tests/test_dummy_d1.py` 전체 통과 ← **자동 검증**
+  - [ ] D1-1: 패키지 구조 7개 항목 통과
+  - [ ] D1-2: connection — 컨텍스트 매니저 동작
+  - [ ] D1-3: schema — 테이블 3개·컬럼·멱등성
+  - [ ] D1-4: inserter — 삽입·reset·upsert
+  - [ ] D1-5: AST — `print()`/`input()` 없음
 
 ### Phase D-2 — `dummy/` 생성기
 
 - [ ] `dummy/sample_generator.py` — `generate_samples(count)`
 - [ ] `dummy/order_generator.py` — `generate_orders(samples, count, status_ratio)`
 - [ ] `dummy/production_generator.py` — `generate_production_jobs(orders, samples)`
+- [ ] `python tests/test_dummy_d2.py` 전체 통과 ← **자동 검증**
+  - [ ] D2-1: 파일 구조
+  - [ ] D2-2: sample_generator — count, 속성, 범위, 중복, pool 초과
+  - [ ] D2-3: order_generator — REJECTED 미포함, 4가지 상태, status_ratio, 빈 입력
+  - [ ] D2-4: production_generator — PRODUCING 연동, 계산식, is_current, 빈 처리
+  - [ ] D2-5: AST — `print()`/`input()`/`sqlite3`/`open()` 없음
 
 ### Phase D-3 — 진입점 + 테스트
 
 - [ ] `dummy_app.py` — 메뉴 루프, 기본 세트·대용량 세트·직접 설정·초기화 후 재생성
 - [ ] `tests/test_dummy.py` — 시나리오 D-1 ~ D-9 작성 및 통과
-- [ ] `python tests/test_dummy.py` 전체 통과
+- [ ] `python tests/test_dummy.py` 전체 통과 ← **자동 검증**
+- [ ] `python dummy_app.py` 수동 확인 통과
 
 ### Phase D-4 — 최종 통합 검증
 
 - [ ] `tests/test_dummy_final.py` — 4단계 검증 흐름 작성
-- [ ] `python tests/test_dummy_final.py` 전체 통과
-  - [ ] 단계 1: `test_dummy.py` (D-1~D-9) 통과
-  - [ ] 단계 2: E2E 삽입·SELECT 검증 통과
+- [ ] `python tests/test_dummy_final.py` 전체 통과 ← **자동 검증**
+  - [ ] 단계 1: `test_dummy.py` (D-1~D-9) subprocess 통과
+  - [ ] 단계 2: E2E 기본 세트 삽입·SELECT·외래 키·is_current 검증 통과
   - [ ] 단계 3: reset + 재삽입 upsert 검증 통과
   - [ ] 단계 4: 전체 파일 구조 확인 통과
 

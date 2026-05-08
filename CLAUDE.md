@@ -335,9 +335,20 @@ tests/
 ├── test_phase12.py         # Phase 12: monitor/ 패키지 구조·import·역할 경계 검증
 ├── test_monitor.py         # Phase 13: 모니터링 도구 집계·AST 검증 M-1~M-9
 ├── test_monitor_final.py   # Phase 14: 전체 Phase E2E 최종 통합 검증
-├── test_dummy.py           # Phase D-3: 더미 도구 단위 검증 (4차 POC 신규)
-└── test_dummy_final.py     # Phase D-4: 더미 도구 최종 통합 검증 (4차 POC 신규)
+├── test_dummy_d1.py        # Phase D-1: dummy/db/ 패키지 구조·연결·스키마·삽입기 검증 (사전 제공)
+├── test_dummy_d2.py        # Phase D-2: dummy/ 생성기 3종 검증 (사전 제공)
+├── test_dummy.py           # Phase D-3: 더미 도구 단위 검증 D-1~D-9 (agent 생성)
+└── test_dummy_final.py     # Phase D-4: 더미 도구 최종 통합 검증 (agent 생성)
 ```
+
+### 테스트 파일 제공 방식 (4차 POC)
+
+| 구분 | 파일 | 설명 |
+|------|------|------|
+| **사전 제공** (agent 실행 전 존재) | `test_dummy_d1.py` | Phase D-1 agent가 구현 완료 후 실행해 검증 |
+| **사전 제공** (agent 실행 전 존재) | `test_dummy_d2.py` | Phase D-2 agent가 구현 완료 후 실행해 검증 |
+| **agent 생성** (agent가 직접 작성) | `test_dummy.py` | Phase D-3 agent의 결과물이자 검증 수단 |
+| **agent 생성** (agent가 직접 작성) | `test_dummy_final.py` | Phase D-4 agent의 결과물이자 최종 검증 수단 |
 
 ### Phase별 검증 명령
 
@@ -356,6 +367,8 @@ tests/
 | 12 | `python tests/test_phase12.py` | monitor/ 패키지 구조·import·빈 데이터·역할 경계(AST) |
 | 13 | `python tests/test_monitor.py` | 집계 로직 M-1~M-9, 역할 경계(AST) |
 | 14 | `python tests/test_monitor_final.py` | 전체 Phase E2E 최종 통합 검증 |
+| D-1 | `python tests/test_dummy_d1.py` | dummy/db/ 구조·연결·스키마·삽입·AST 검증 ← **자동 검증** |
+| D-2 | `python tests/test_dummy_d2.py` | 생성기 3종 동작·계산식·역할 경계 검증 ← **자동 검증** |
 | D-3 | `python tests/test_dummy.py` | 더미 도구 단위 검증 D-1~D-9 |
 | D-4 | `python tests/test_dummy_final.py` | 더미 도구 최종 통합 검증 |
 

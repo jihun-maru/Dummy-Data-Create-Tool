@@ -258,35 +258,47 @@ def generate_production_jobs(
 
 ## 검증 방법
 
-### import 확인
+> **사전 제공 검증 스크립트:** `tests/test_dummy_d2.py` 는 Phase D-2 agent 실행 전 이미 존재한다.
+> Phase D-2 agent는 구현 완료 후 이 스크립트를 실행해 검증한다.
+
+### 자동 검증 스크립트 실행 (필수)
 
 ```bash
-python -c "from dummy.sample_generator import generate_samples; print('OK')"
-python -c "from dummy.order_generator import generate_orders; print('OK')"
-python -c "from dummy.production_generator import generate_production_jobs; print('OK')"
+python tests/test_dummy_d2.py
 ```
 
-### 동작 확인
+모든 항목 `[PASS]` 출력 후 "✓ Phase D-2 검증 완료" 메시지가 나와야 통과.
 
-```python
-from dummy.sample_generator import generate_samples
-from dummy.order_generator import generate_orders
-from dummy.production_generator import generate_production_jobs
+### 검증 항목
 
-samples = generate_samples(5)
-print(f"시료 {len(samples)}개 생성: {[s.sample_id for s in samples]}")
+| 시나리오 | 검증 내용 |
+|----------|----------|
+| D2-1 파일 구조 | 생성기 3개 파일 존재 확인 |
+| D2-2 sample_generator | `generate_samples()` — count 파라미터, 속성 존재, 범위, 중복 없음, pool 초과 처리 |
+| D2-3 order_generator | `generate_orders()` — 건수, REJECTED 미포함, 4가지 상태, status_ratio, 빈 samples 처리 |
+| D2-4 production_generator | `generate_production_jobs()` — PRODUCING 연동, 계산식, is_current, 빈 처리 |
+| D2-5 AST | `dummy/*.py` 에 `print()`/`input()`/`sqlite3`/`open()` 없음 |
 
-orders = generate_orders(samples, 20)
-from collections import Counter
-status_counts = Counter(o.status.value for o in orders)
-print(f"주문 {len(orders)}개 생성: {dict(status_counts)}")
-assert "REJECTED" not in status_counts, "REJECTED 생성 금지"
+### 기대 출력
 
-jobs = generate_production_jobs(orders, samples)
-print(f"생산 작업 {len(jobs)}개 생성")
-current_count = sum(1 for j in jobs if j["is_current"] == 1)
-assert current_count <= 1, f"is_current=1이 최대 1개여야 함, 실제: {current_count}"
-print("검증 통과")
+```
+======================================================
+Phase D-2 검증 — dummy/ 생성기 3종
+======================================================
+
+[D2-1] 파일 구조 검증
+[PASS] D2-1 dummy/sample_generator.py 존재
+[PASS] D2-1 dummy/order_generator.py 존재
+[PASS] D2-1 dummy/production_generator.py 존재
+...
+
+[D2-5] 역할 경계 (AST) — dummy/*.py (생성기)
+[PASS] D2-5 dummy/sample_generator.py — print/input 없음
+...
+
+------------------------------------------------------
+결과: N개 통과 / 0개 실패
+✓ Phase D-2 검증 완료 — 모든 항목 통과
 ```
 
 ### 실패 시 조치
@@ -295,6 +307,7 @@ print("검증 통과")
 |------|------|
 | `AttributeError: Sample has no attribute 'stock'` | `model/sample.py` 의 stock 속성명 확인 후 수정 |
 | `TypeError: Order.__init__()` 인자 오류 | `model/order.py` 생성자 파라미터 재확인 |
-| `AttributeError: 'str' object has no attribute 'value'` | `o.status` 가 이미 문자열인 경우 — `OrderStatus(status_key)` 대신 enum 직접 사용 |
-| `generate_orders` 건수 불일치 | `counts` 합산 오차 확인 — 마지막 키에 나머지 흡수 로직 점검 |
-| `generate_production_jobs` 빈 반환 | orders 중 PRODUCING 상태가 없는지 확인 |
+| `D2-3-11 4가지 상태 모두 포함 FAIL` | `counts` 계산 시 0이 되는 상태 없는지 확인 |
+| `D2-4-9 actual_qty 계산식 FAIL` | `ceil(quantity / (yield_rate * 0.9))` 공식 재확인 |
+| `D2-5 sqlite3 import 검출` | generator 파일에서 sqlite3 제거, DB 작업은 inserter 통해서만 수행 |
+| `generate_orders` 건수 불일치 | `counts` 합산 오차 — 마지막 키에 나머지 흡수 로직 점검 |
